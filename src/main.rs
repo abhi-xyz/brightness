@@ -1,30 +1,12 @@
 use ddc_hi::{Ddc, Display};
+use log::warn;
 use std::env;
 use std::process::exit;
 
-// Print usage information for the program.
-fn print_usage(program_name: &str) {
-    println!("Usage:");
-    println!(
-        "  {} <brightness>    Set brightness level (0-100) on supported displays",
-        program_name
-    );
-    println!("  {} --help          Print usage information", program_name);
-    println!(
-        "  {} --status        Check if displays support brightness adjustment",
-        program_name
-    );
-    println!(
-        "  {} --get           Get current brightness level",
-        program_name
-    );
-    println!(
-        "  {} +/-<number>     Adjust brightness by the specified value (0-100)",
-        program_name
-    );
-}
-
 fn main() {
+    env_logger::init();
+    bs_get_device();
+    bs_get_brightness();
     // Parse command-line arguments
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -33,19 +15,8 @@ fn main() {
         exit(1);
     }
 
-    /*
-    env::args() returns an iterator over the command-line arguments passed to the program.
-    .collect() converts this iterator into a Vec<String>, a vector containing the arguments as strings.
-    args now holds all the command-line arguments, including the program name as the first element.
-
-    if args.len() < 2 {
-
-    This checks if the number of command-line arguments is less than 2.
-    args.len() returns the number of elements in the args vector.
-    */
-
     let mut brightness_value = None;
-    let mut print_help = false;
+    // let mut print_help = false;
     let mut print_status = false;
     let mut get_brightness = false;
     let mut adjust_brightness: Option<i16> = None;
@@ -53,8 +24,8 @@ fn main() {
     // Parse arguments
     for arg in &args[1..] {
         match arg.as_str() {
-            "--help" => print_help = true,
-            "-h" => print_help = true,
+            //     "--help" => print_help = true,
+            //     "-h" => print_help = true,
             "--status" => print_status = true,
             "-s" => print_status = true,
             "--get" => get_brightness = true,
@@ -79,10 +50,10 @@ fn main() {
         }
     }
 
-    if print_help {
-        print_usage(&args[0]);
-        exit(0);
-    }
+    // if print_help {
+    //     print_usage(&args[0]);
+    //     exit(0);
+    // }
 
     if print_status {
         // Check if displays support brightness adjustment via DDC/CI
@@ -186,3 +157,46 @@ fn main() {
     }
 }
 
+fn bs_get_brightness() {
+    let displays = Display::enumerate();
+
+    for mut display in displays {
+        match display.handle.get_vcp_feature(0x10) {
+            Ok(result) => println!("Current Brightness is {}", result.value()),
+            Err(_) => panic!(),
+        }
+    }
+}
+
+fn bs_get_device() {
+    let displays = Display::enumerate();
+
+    for mut display in displays {
+        match display.handle.get_vcp_feature(0x10) {
+            Ok(_result) => println!("Connected device {}", display.info),
+            Err(_) => warn!("Fasil"),
+        }
+    }
+}
+
+// Print usage information for the program.
+fn print_usage(program_name: &str) {
+    println!("Usage:");
+    println!(
+        "  {} <brightness>    Set brightness level (0-100) on supported displays",
+        program_name
+    );
+    println!("  {} --help          Print usage information", program_name);
+    println!(
+        "  {} --status        Check if displays support brightness adjustment",
+        program_name
+    );
+    println!(
+        "  {} --get           Get current brightness level",
+        program_name
+    );
+    println!(
+        "  {} +/-<number>     Adjust brightness by the specified value (0-100)",
+        program_name
+    );
+}
