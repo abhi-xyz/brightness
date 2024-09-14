@@ -1,10 +1,9 @@
-use brightness::get_device;
+use brightness::{get_brightness, get_device, set_brightness};
 use clap::{Parser, Subcommand};
-use ddc_hi::{Ddc, Display};
 use log::*;
 
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(version, about = "A simple brightness app which uses ddc",author = "Abhinandh S", long_about = None)]
 struct Args {
     #[command(subcommand)]
     command: Command,
@@ -43,113 +42,17 @@ fn main() {
     }
 }
 
-fn calc(value: i16) -> i16 {
-    if value >= 100 {
-        // if the value doesn't fit in 0 - 100 is returned.
-        println!("value must be in between 0 - 100");
-        let value = 100;
-        println!("value setted to {}", &value);
-        return value;
-    } else if value <= 0 {
-        // if the value doesn't fit in 0 - 100 is returned.
-        println!("value must be in between 0 - 100");
-        let value = 0;
-        println!("value setted to {}", &value);
-        return value;
-    } else if value > 0 || value < 100 {
-        // if the value doesn't fit in 0 - 100 is returned.
-        println!("value is: {}", &value);
-        return value;
-    }
-    0
-}
-
-fn set_brightness(value: i16) {
-    let calc_value = calc(value);
-    let mut displays = Display::enumerate();
-    for display in &mut displays {
-        match display.handle.get_vcp_feature(0x10) {
-            Ok(_current_value) => match display.handle.set_vcp_feature(
-                0x10,
-                calc_value.try_into().expect("Failed to set brightness"),
-            ) {
-                Ok(_) => println!(
-                    "Brightness adjusted to {} on display {:?}",
-                    calc_value, display.info.model_name
-                ),
-                Err(err) => eprintln!(
-                    "Failed to set brightness on display {:?}\nerror: {:?}",
-                    display.info.model_name, err
-                ),
-            },
-            Err(_) => eprintln!(
-                "Failed to get current brightness for display {:?}",
-                display.info.model_name
-            ),
-        }
-    }
-}
-
-fn get_brightness() -> i16 {
-    let displays = Display::enumerate();
-
-    for mut display in displays {
-        match display.handle.get_vcp_feature(0x10) {
-            Ok(result) => {
-                println!("Current Brightness is {}", result.value());
-                return result.value() as i16;
-            }
-            Err(_) => println!("Err from get_brightness function"),
-        }
-    }
-    0
-}
-
 #[cfg(test)]
 mod tests {
 
-    use std::{thread::sleep, time::Duration};
-
-    use crate::{get_brightness, set_brightness};
+    use brightness::calc;
 
     #[test]
-    fn set_brightness_test() {
-        let test_value: i16 = 10;
-        set_brightness(test_value);
-        sleep(Duration::from_secs(5));
-        assert_eq!(get_brightness(), 10);
-        sleep(Duration::from_secs(5));
-    }
-    #[test]
-    fn set_brightness_test_higher() {
-        let test_value: i16 = 130;
-        set_brightness(test_value);
-        sleep(Duration::from_secs(5));
-        assert_ne!(get_brightness(), 130);
-        sleep(Duration::from_secs(5));
-    }
-    #[test]
-    fn set_brightness_test_higher_eq() {
-        let test_value: i16 = 130;
-        set_brightness(test_value);
-        sleep(Duration::from_secs(5));
-        assert_eq!(get_brightness(), 100);
-        sleep(Duration::from_secs(5));
-    }
-    #[test]
-    fn set_brightness_test_lower() {
-        let test_value: i16 = -2;
-        set_brightness(test_value);
-        sleep(Duration::from_secs(5));
-        assert_ne!(get_brightness(), -2);
-        sleep(Duration::from_secs(5));
-    }
-    #[test]
-    fn set_brightness_test_lower_eq() {
-        let test_value: i16 = -2;
-        set_brightness(test_value);
-        sleep(Duration::from_secs(5));
-        assert_eq!(get_brightness(), 0);
-        sleep(Duration::from_secs(5));
+    fn test_calc() {
+        assert_eq!(calc(110), 100);
+        assert_eq!(calc(-10), 0);
+        assert_eq!(calc(50), 50);
+        assert_eq!(calc(0), 0);
+        assert_eq!(calc(100), 100);
     }
 }
