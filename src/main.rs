@@ -1,202 +1,155 @@
+use brightness::get_device;
+use clap::{Parser, Subcommand};
 use ddc_hi::{Ddc, Display};
-use log::warn;
-use std::env;
-use std::process::exit;
+use log::*;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Debug, Subcommand)]
+enum Command {
+    GetDevice,
+    #[command(short_flag = 'g')]
+    GetBrightness,
+    #[command(short_flag = 's')]
+    SetBrightness {
+        value: i16,
+    },
+}
 
 fn main() {
     env_logger::init();
-    bs_get_device();
-    bs_get_brightness();
-    // Parse command-line arguments
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        eprintln!("No command specified. Type -h or --help for help");
-        // print_usage(&args[0]);
-        exit(1);
-    }
+    let args = Args::parse();
 
-    let mut brightness_value = None;
-    // let mut print_help = false;
-    let mut print_status = false;
-    let mut get_brightness = false;
-    let mut adjust_brightness: Option<i16> = None;
-
-    // Parse arguments
-    for arg in &args[1..] {
-        match arg.as_str() {
-            //     "--help" => print_help = true,
-            //     "-h" => print_help = true,
-            "--status" => print_status = true,
-            "-s" => print_status = true,
-            "--get" => get_brightness = true,
-            "-g" => get_brightness = true,
-            value if value.starts_with('+') || value.starts_with('-') => {
-                if let Ok(delta) = value.parse::<i16>() {
-                    adjust_brightness = Some(delta);
-                } else {
-                    eprintln!("Invalid adjustment value '{}'.", value);
-                    print_usage(&args[0]);
-                    exit(1);
-                }
-            }
-            value => {
-                if brightness_value.is_some() {
-                    eprintln!("Error: Unexpected argument '{}'.", value);
-                    print_usage(&args[0]);
-                    exit(1);
-                }
-                brightness_value = Some(value.to_string());
-            }
+    match args.command {
+        Command::GetDevice => {
+            println!("Device info:");
+            get_device();
+        }
+        Command::GetBrightness => {
+            println!("Current brightness:");
+            get_brightness();
+        }
+        Command::SetBrightness { value } => {
+            println!("Setting Brightness:");
+            let new_value = value;
+            trace!("This value is got from clap: {}", &new_value);
+            set_brightness(new_value);
         }
     }
+}
 
-    // if print_help {
-    //     print_usage(&args[0]);
-    //     exit(0);
-    // }
-
-    if print_status {
-        // Check if displays support brightness adjustment via DDC/CI
-        let displays = Display::enumerate();
-        for mut display in displays {
-            match display.handle.get_vcp_feature(0x10) {
-                Ok(_) => println!(
-                    "Display {:?} supports brightness adjustment via DDC/CI.",
-                    display.info.model_name
-                ),
-                Err(_) => println!(
-                    "Display {:?} does not support brightness adjustment via DDC/CI.",
-                    display.info.model_name
-                ),
-            }
-        }
-        exit(0);
+fn calc(value: i16) -> i16 {
+    if value >= 100 {
+        // if the value doesn't fit in 0 - 100 is returned.
+        println!("value must be in between 0 - 100");
+        let value = 100;
+        println!("value setted to {}", &value);
+        return value;
+    } else if value <= 0 {
+        // if the value doesn't fit in 0 - 100 is returned.
+        println!("value must be in between 0 - 100");
+        let value = 0;
+        println!("value setted to {}", &value);
+        return value;
+    } else if value > 0 || value < 100 {
+        // if the value doesn't fit in 0 - 100 is returned.
+        println!("value is: {}", &value);
+        return value;
     }
+    0
+}
 
-    if get_brightness {
-        // Retrieve and print the current brightness level
-        let displays = Display::enumerate();
-        for mut display in displays {
-            match display.handle.get_vcp_feature(0x10) {
-                Ok(value) => println!("{}", value.value()),
-                Err(_) => println!(
-                    "Failed to get brightness for display {:?}",
-                    display.info.model_name
-                ),
-            }
-        }
-        exit(0);
-    }
-
-    if let Some(delta) = adjust_brightness {
-        // Adjust brightness by the specified delta value
-        let mut displays = Display::enumerate();
-        for display in &mut displays {
-            match display.handle.get_vcp_feature(0x10) {
-                Ok(current_value) => {
-                    let new_brightness =
-                        (current_value.value() as i16 + delta).clamp(0, 100) as u16;
-                    match display.handle.set_vcp_feature(0x10, new_brightness) {
-                        Ok(_) => println!(
-                            "Brightness adjusted to {} on display {:?}",
-                            new_brightness, display.info.model_name
-                        ),
-                        Err(err) => eprintln!(
-                            "Failed to set brightness on display {:?}: {:?}",
-                            display.info.model_name, err
-                        ),
-                    }
-                }
-                Err(_) => eprintln!(
-                    "Failed to get current brightness for display {:?}",
-                    display.info.model_name
-                ),
-            }
-        }
-        exit(0);
-    }
-
-    // If neither --help nor --status nor --get was specified, handle brightness adjustment
-    let new_brightness: u16 = match brightness_value.as_ref().unwrap().parse() {
-        Ok(value) => value,
-        Err(_) => {
-            eprintln!(
-                "Invalid brightness value: {}",
-                brightness_value.as_ref().unwrap()
-            );
-            exit(1);
-        }
-    };
-
-    // Ensure the brightness is within the valid range (0-100)
-    if new_brightness > 100 {
-        eprintln!("Brightness value must be between 0 and 100.");
-        exit(1);
-    }
-
-    // Retrieve all connected displays that support DDC/CI
+fn set_brightness(value: i16) {
+    let calc_value = calc(value);
     let mut displays = Display::enumerate();
-
-    if displays.is_empty() {
-        eprintln!("No displays supporting DDC/CI found.");
-        exit(1);
-    }
-
-    // Iterate through each display and set the brightness
     for display in &mut displays {
-        match display.handle.set_vcp_feature(0x10, new_brightness) {
-            Ok(_) => println!(
-                "Brightness set to {} on display {:?}",
-                new_brightness, display.info.model_name
-            ),
-            Err(err) => eprintln!(
-                "Failed to set brightness on display {:?}: {:?}",
-                display.info.model_name, err
+        match display.handle.get_vcp_feature(0x10) {
+            Ok(_current_value) => match display.handle.set_vcp_feature(
+                0x10,
+                calc_value.try_into().expect("Failed to set brightness"),
+            ) {
+                Ok(_) => println!(
+                    "Brightness adjusted to {} on display {:?}",
+                    calc_value, display.info.model_name
+                ),
+                Err(err) => eprintln!(
+                    "Failed to set brightness on display {:?}\nerror: {:?}",
+                    display.info.model_name, err
+                ),
+            },
+            Err(_) => eprintln!(
+                "Failed to get current brightness for display {:?}",
+                display.info.model_name
             ),
         }
     }
 }
 
-fn bs_get_brightness() {
+fn get_brightness() -> i16 {
     let displays = Display::enumerate();
 
     for mut display in displays {
         match display.handle.get_vcp_feature(0x10) {
-            Ok(result) => println!("Current Brightness is {}", result.value()),
-            Err(_) => panic!(),
+            Ok(result) => {
+                println!("Current Brightness is {}", result.value());
+                return result.value() as i16;
+            }
+            Err(_) => println!("Err from get_brightness function"),
         }
     }
+    0
 }
 
-fn bs_get_device() {
-    let displays = Display::enumerate();
+#[cfg(test)]
+mod tests {
 
-    for mut display in displays {
-        match display.handle.get_vcp_feature(0x10) {
-            Ok(_result) => println!("Connected device {}", display.info),
-            Err(_) => warn!("Fasil"),
-        }
+    use std::{thread::sleep, time::Duration};
+
+    use crate::{get_brightness, set_brightness};
+
+    #[test]
+    fn set_brightness_test() {
+        let test_value: i16 = 10;
+        set_brightness(test_value);
+        sleep(Duration::from_secs(5));
+        assert_eq!(get_brightness(), 10);
+        sleep(Duration::from_secs(5));
     }
-}
-
-// Print usage information for the program.
-fn print_usage(program_name: &str) {
-    println!("Usage:");
-    println!(
-        "  {} <brightness>    Set brightness level (0-100) on supported displays",
-        program_name
-    );
-    println!("  {} --help          Print usage information", program_name);
-    println!(
-        "  {} --status        Check if displays support brightness adjustment",
-        program_name
-    );
-    println!(
-        "  {} --get           Get current brightness level",
-        program_name
-    );
-    println!(
-        "  {} +/-<number>     Adjust brightness by the specified value (0-100)",
-        program_name
-    );
+    #[test]
+    fn set_brightness_test_higher() {
+        let test_value: i16 = 130;
+        set_brightness(test_value);
+        sleep(Duration::from_secs(5));
+        assert_ne!(get_brightness(), 130);
+        sleep(Duration::from_secs(5));
+    }
+    #[test]
+    fn set_brightness_test_higher_eq() {
+        let test_value: i16 = 130;
+        set_brightness(test_value);
+        sleep(Duration::from_secs(5));
+        assert_eq!(get_brightness(), 100);
+        sleep(Duration::from_secs(5));
+    }
+    #[test]
+    fn set_brightness_test_lower() {
+        let test_value: i16 = -2;
+        set_brightness(test_value);
+        sleep(Duration::from_secs(5));
+        assert_ne!(get_brightness(), -2);
+        sleep(Duration::from_secs(5));
+    }
+    #[test]
+    fn set_brightness_test_lower_eq() {
+        let test_value: i16 = -2;
+        set_brightness(test_value);
+        sleep(Duration::from_secs(5));
+        assert_eq!(get_brightness(), 0);
+        sleep(Duration::from_secs(5));
+    }
 }
