@@ -26,15 +26,12 @@ fn main() {
 
     match args.command {
         Command::GetDevice => {
-            println!("Device info:");
             get_device();
         }
         Command::GetBrightness => {
-            println!("Current brightness:");
             get_brightness();
         }
         Command::SetBrightness { value } => {
-            println!("Setting Brightness:");
             let new_value = value;
             trace!("This value is got from clap: {}", &new_value);
             set_brightness(new_value);

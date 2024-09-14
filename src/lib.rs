@@ -4,19 +4,19 @@ use log::*;
 pub fn calc(value: i16) -> i16 {
     if value >= 100 {
         // if the value doesn't fit in 0 - 100 is returned.
-        println!("value must be in between 0 - 100");
+        warn!("value must be in between 0 - 100");
         let value = 100;
-        println!("value setted to {}", &value);
+        warn!("value setted to {}", &value);
         return value;
     } else if value <= 0 {
         // if the value doesn't fit in 0 - 100 is returned.
-        println!("value must be in between 0 - 100");
+        warn!("value must be in between 0 - 100");
         let value = 0;
-        println!("value setted to {}", &value);
+        warn!("value setted to {}", &value);
         return value;
     } else if value > 0 || value < 100 {
         // if the value doesn't fit in 0 - 100 is returned.
-        println!("value is: {}", &value);
+        warn!("value is: {}", &value);
         return value;
     }
     0
@@ -42,10 +42,11 @@ pub fn set_brightness(value: i16) {
                 0x10,
                 calc_value.try_into().expect("Failed to set brightness"),
             ) {
-                Ok(_) => println!(
-                    "Brightness adjusted to {} on display {:?}",
-                    calc_value, display.info.model_name
-                ),
+                Ok(_) => println!("{}", calc_value),
+                // Ok(_) => println!(
+                //     "Brightness adjusted to {} on display {:?}",
+                //     calc_value, display.info.model_name
+                // ),
                 Err(err) => eprintln!(
                     "Failed to set brightness on display {:?}\nerror: {:?}",
                     display.info.model_name, err
@@ -65,7 +66,7 @@ pub fn get_brightness() -> i16 {
     for mut display in displays {
         match display.handle.get_vcp_feature(0x10) {
             Ok(result) => {
-                println!("Current Brightness is {}", result.value());
+                println!("{}", result.value());
                 return result.value() as i16;
             }
             Err(_) => println!("Err from get_brightness function"),
