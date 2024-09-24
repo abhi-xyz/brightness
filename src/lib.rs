@@ -1,22 +1,21 @@
 use ddc_hi::{Ddc, Display};
-use log::*;
 
 pub fn calc(value: i16) -> i16 {
     if value >= 100 {
         // if the value doesn't fit in 0 - 100 is returned.
-        warn!("value must be in between 0 - 100");
+        dbg!("value must be in between 0 - 100");
         let value = 100;
-        warn!("value setted to {}", &value);
+        dbg!("value setted to {}", &value);
         return value;
     } else if value <= 0 {
         // if the value doesn't fit in 0 - 100 is returned.
-        warn!("value must be in between 0 - 100");
+        dbg!("value must be in between 0 - 100");
         let value = 0;
-        warn!("value setted to {}", &value);
+        dbg!("value setted to {}", &value);
         return value;
     } else if value > 0 || value < 100 {
         // if the value doesn't fit in 0 - 100 is returned.
-        warn!("value is: {}", &value);
+        dbg!("value is: {}", &value);
         return value;
     }
     0
@@ -28,7 +27,7 @@ pub fn get_device() {
     for mut display in displays {
         match display.handle.get_vcp_feature(0x10) {
             Ok(_result) => println!("Connected device {}", display.info),
-            Err(_) => warn!("Connection to device {} Failed", display.info),
+            Err(_) => println!("Connection to device {} Failed", display.info),
         }
     }
 }
@@ -73,4 +72,25 @@ pub fn get_brightness() -> i16 {
         }
     }
     0
+}
+
+pub fn change_brightness(value: i16, by: String) {
+    let c = get_brightness();
+    let by_sing = Option::Some(by);
+    match by_sing {
+        Some(_) if by_sing == Some(String::from("+")) => {
+            let v = c + value;
+            set_brightness(value);
+            println!("some + = {v}");
+        }
+        Some(_) if by_sing == Some(String::from("-")) => {
+            let v = c - value;
+            println!("some = {v}");
+            set_brightness(v);
+        }
+
+        None => panic!(),
+        // all other numbers
+        _ => panic!(),
+    }
 }
